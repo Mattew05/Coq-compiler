@@ -57,10 +57,9 @@ Inductive Stmt :=
   | string_assign : string -> SExp -> Stmt  (* Assignment Stmt for variables of type string *)
   | sequence : Stmt -> Stmt -> Stmt
   | while : BExp -> Stmt -> Stmt
-  | do_while : Stmt -> BExp -> Stmt
   | ifthenelse : BExp -> Stmt -> Stmt -> Stmt
   | ifthen : BExp -> Stmt -> Stmt
-  | switch : BExp -> Stmt -> Stmt. (*Help*)
+  | switch : BExp -> Stmt -> Stmt. (*To add later*)
 
 (* Section for notations *)
 
@@ -90,7 +89,7 @@ Notation "'whiles' ( A ) { B }" := (while B A) (at level 97).
 Notation "'fors' ( A ~ B ~ C ) { S }" := (A ;; while B ( S ;; C )) (at level 97).
 Notation "'if' ( A ) { B }" := (ifthen A B ) (at level 97).
 Notation "'if' ( A ) { B } 'else' { C }" := (ifthenelse A B C) (at level 97).
-Notation "'do' { A } 'while' ( B ) " := (do_while A B) (at level 97).
+Notation "'do' { A } 'while' ( B ) " := ( A ;; while B A ) (at level 97).
 
 (* Reserved Notations *)
 Reserved Notation "A =[ S ]=> N" (at level 60).
@@ -120,8 +119,11 @@ Definition Env := string -> Result.
 (* Initial environment *)
 Definition env : Env := fun x => err_undecl.
 
-(* Initially each variable is undeclared *)
-Compute (env "x").
+Definition update (env : Env) (x : string) (v : Result) : Env :=
+  fun y =>
+    if (eqb y x)
+    then v
+    else (env y).
 
 (* This function is useful when we need to update the environment based on the state of a variable *)
 
@@ -155,7 +157,7 @@ Definition check_eq_over_types (t1 : Result)(t2 : Result) : bool :=
   end.
 
 
-(*Sintax for aritmethic expressions*)
+(*Errors for aritmethic expressions*)
 
 Definition plus_ErrorNat (n1 n2 : ErrorNat) : ErrorNat :=
   match n1, n2 with
@@ -320,3 +322,98 @@ Inductive beval : BExp -> Env -> ErrorBool -> Prop :=
     (a1 ||' a2) ={ sigma }=> b 
 where "B ={ S }=> B'" := (beval B S B').
 
+Inductive eval : Stmt -> Env -> Env -> Prop :=
+| e_nat_decl: forall a i x sigma sigma',
+   a =[ sigma ]=> i ->
+   sigma' = (update sigma x (res_nat i)) ->
+   (x :n= a) -{ sigma }-> sigma'
+| e_nat_assign: forall a i x sigma sigma',
+    a =[ sigma ]=> i ->
+    sigma' = (update sigma x (res_nat i)) ->
+    (x :n= a) -{ sigma }-> sigma'
+| e_bool_decl: forall a i x sigma sigma',
+   a ={ sigma }=> i ->
+   sigma' = (update sigma x (res_bool i)) ->
+   (x :b= a) -{ sigma }-> sigma'
+| e_bool_assign: forall a i x sigma sigma',
+    a ={ sigma }=> i ->
+    sigma' = (update sigma x (res_bool i)) ->
+    (x :b= a) -{ sigma }-> sigma'
+| e_seq : forall s1 s2 sigma sigma1 sigma2,
+    s1 -{ sigma }-> sigma1 ->
+    s2 -{ sigma1 }-> sigma2 ->
+    (s1 ;; s2) -{ sigma }-> sigma2
+| e_if_then : forall b s sigma,
+    ifthen b s -{ sigma }-> sigma
+| e_if_then_elsetrue : forall b s1 s2 sigma sigma',
+    b ={ sigma }=> true ->
+    s1 -{ sigma }-> sigma' ->
+    ifthenelse b s1 s2 -{ sigma }-> sigma' 
+| e_if_then_elsefalse : forall b s1 s2 sigma sigma',
+    b ={ sigma }=> false ->
+    s2 -{ sigma }-> sigma' ->
+    ifthenelse b s1 s2 -{ sigma }-> sigma' 
+| e_whilefalse : forall b s sigma,
+    b ={ sigma }=> false ->
+    while b s -{ sigma }-> sigma
+| e_whiletrue : forall b s sigma sigma',
+    b ={ sigma }=> true ->
+    (s ;; while b s) -{ sigma }-> sigma' ->
+    while b s -{ sigma }-> sigma'
+where "s -{ sigma }-> sigma'" := (eval s sigma sigma').
+
+Fixpoint eval_fun (s : Stmt) (env : Env) (gas: nat) : Env :=
+    match gas with
+    | 0 => env
+    | S gas' => match s with
+                | sequence S1 S2 => eval_fun S2 (eval_fun S1 env gas') gas'
+                | nat_decl a aexp => update (update env a default) a (res_nat (aeval_fun aexp env))
+                | bool_decl b bexp => update (update env b default) b (res_bool (beval_fun bexp env))
+                | nat_assign a aexp => update env a (res_nat (aeval_fun aexp env))
+                | bool_assign b bexp => update env b (res_bool (beval_fun bexp env))
+                | ifthen cond s' => 
+                    match (beval_fun cond env) with
+                    | error_bool => env
+                    | boolean v => match v with
+                                 | true => eval_fun s' env gas'
+                                 | false => env
+                                 end
+                    end
+                | ifthenelse cond S1 S2 => 
+                    match (beval_fun cond env) with
+                        | error_bool => env
+                        | boolean v  => match v with
+                                 | true => eval_fun S1 env gas'
+                                 | false => eval_fun S2 env gas'
+                                 end
+                         end
+                | while cond s' => 
+                    match (beval_fun cond env) with
+                        | error_bool => env
+                        | boolean v => match v with
+                                     | true => eval_fun (s' ;; (while cond s')) env gas'
+                                     | false => env
+                                     end
+                end
+    end.
+
+(*Some examples or something*)
+Definition while_stmt :=
+    iNat "i" ::= 0 ;;
+    iNat "sum" ::= 0 ;;
+    while 
+        ("i" <' 6) 
+        (
+           "sum" :n= "sum" +' "i" ;;
+           "i" :n= "i" +' 1
+        ).
+
+Compute (eval_fun while_stmt env 100) "sum".
+
+Definition for_stmt :=
+    iNat "sum" ::= 0 ;;
+    fors ( iNat "i" ::= 0 ~ "i" <' 6 ~ "i" :n= "i" +' 1 ) {
+      "sum" :n= "sum" +' "i"
+    }.
+
+Compute (eval_fun for_stmt env 100) "sum".

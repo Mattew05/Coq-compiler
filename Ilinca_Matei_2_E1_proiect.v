@@ -124,7 +124,7 @@ Definition env : Env := fun x => err_undecl.
 Compute (env "x").
 
 (* This function is useful when we need to update the environment based on the state of a variable *)
-(*
+
 Definition check_eq_over_types (t1 : Result)(t2 : Result) : bool :=
   match t1 with
   | err_undecl => match t2 with 
@@ -135,14 +135,26 @@ Definition check_eq_over_types (t1 : Result)(t2 : Result) : bool :=
                    | err_assign => true
                    | _ => false
                    end
-  | default => t1
-  | res_nat t1 => ErrorNat
-  | res_bool t1 => ErrorBool
-  | res_string t1 =>ErrorString
-  | code t1 => Stmt
+  | default => false
+  | res_nat t1 => match t2 with
+                   | res_nat t1 => true
+                   | _ => false
+                   end
+  | res_bool t1 => match t2 with
+                   | res_bool t1 => true
+                   | _ => false
+                   end
+  | res_string t1 => match t2 with
+                   | res_string t1 => true
+                   | _ => false
+                   end
+  | code t1 => match t2 with
+                   | code t1 => true
+                   | _ => false
+                   end
   end.
 
-*)
+
 (*Sintax for aritmethic expressions*)
 
 Definition plus_ErrorNat (n1 n2 : ErrorNat) : ErrorNat :=
@@ -197,6 +209,8 @@ Fixpoint aeval_fun (a : AExp) (env : Env) : ErrorNat :=
   | adiv a1 a2 => (div_ErrorNat  (aeval_fun a1 env) (aeval_fun a2 env))
   | amod a1 a2 => (mod_ErrorNat (aeval_fun a1 env) (aeval_fun a2 env))
   end.
+
+
 
 (* Big-Step semantics for arithmetic operations *)
 Inductive aeval : AExp -> Env -> ErrorNat -> Prop :=
@@ -305,3 +319,4 @@ Inductive beval : BExp -> Env -> ErrorBool -> Prop :=
     b = (or_ErrorBool i1 i2) ->
     (a1 ||' a2) ={ sigma }=> b 
 where "B ={ S }=> B'" := (beval B S B').
+

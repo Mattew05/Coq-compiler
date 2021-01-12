@@ -59,7 +59,7 @@ Inductive Stmt :=
   | while : BExp -> Stmt -> Stmt
   | ifthenelse : BExp -> Stmt -> Stmt -> Stmt
   | ifthen : BExp -> Stmt -> Stmt
-  | switch : BExp -> Stmt -> Stmt. (*To add later*)
+  | switch : BExp -> Stmt -> Stmt. (*To add later, too late, not added*)
 
 (* Section for notations *)
 
@@ -76,7 +76,7 @@ Notation "A &&' B" := (band A B)(at level 52, left associativity).
 Notation "A ||' B" := (bor A B)(at level 53, left associativity).
 
 (* Notations used for string operations *)
-Notation "A 'concat' B" := (sconcat A B) (at level 50).
+Notation "A 'concat' B" := (sconcat A B) (at level 50). (*no sintax for this*)
 
 (* Notations for Statements *)
 Notation "X :n= A" := (nat_assign X A)(at level 90).
